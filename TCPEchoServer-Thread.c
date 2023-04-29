@@ -6,13 +6,14 @@
 MYSQL *conn; /* MySQL connection handle */
 
 /* MySQL table creation query */
-const char *CREATE_TABLE_QUERY = "CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) NOT NULL, password VARCHAR(255) NOT NULL)";
+const char *CREATE_TABLE_QUERY = "CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) NOT NULL UNIQUE, password VARCHAR(255) NOT NULL, ipaddress VARCHAR(30) NOT NULL, isactive BOOLEAN)";
 
 void *ThreadMain(void *arg); /* Main program of a thread */
 
 /* Structure of arguments to pass to client thread */
 struct ThreadArgs {
   int clntSock; /* Socket descriptor for client */
+  char ClntAddr[20];
 };
 
 
@@ -26,7 +27,7 @@ void ConnectToDB()
 
     /* Connect to MySQL database */
     if (mysql_real_connect(conn, DB_HOST, DB_USER, DB_PASS, DB_NAME, 0, NULL, 0) == NULL)
-        DieWithError(mysql_error(conn));
+        DieWithError("Error in Sql connection");
 
     printf("Connected to MySQL database %s\n", DB_NAME);
 }
@@ -44,7 +45,7 @@ void DisconnectFromDB()
 void CreateUsersTable()
 {
     if (mysql_query(conn, CREATE_TABLE_QUERY) != 0)
-        DieWithError(mysql_error(conn));
+        DieWithError("Error in creating table");
 
     printf("Created table 'users' in MySQL database %s\n", DB_NAME);
 }
@@ -57,7 +58,7 @@ int main(int argc, char *argv[]) {
   unsigned short echoServPort;   /* Server port */
   pthread_t threadID;            /* Thread ID from pthread_create() */
   struct ThreadArgs *threadArgs; /* Pointer to argument structure for thread */
-
+  struct sockaddr_in *ClntAddr;
   if (argc != 2) /* Test for correct number of arguments */
   {
     fprintf(stderr, "Usage:  %s <SERVER PORT>\n", argv[0]);
@@ -74,14 +75,13 @@ int main(int argc, char *argv[]) {
   for (;;) /* run forever */
   {
     printf("waiting for connection ....\n");
-    clntSock = AcceptTCPConnection(servSock);
-
+    clntSock = AcceptTCPConnection(servSock,&ClntAddr);
     /* Create separate memory for client argument */
     if ((threadArgs = (struct ThreadArgs *)malloc(sizeof(struct ThreadArgs))) ==
         NULL)
       DieWithError("malloc() failed");
     threadArgs->clntSock = clntSock;
-
+    strcpy(threadArgs->ClntAddr, ClntAddr);
     /* Create client thread */
     if (pthread_create(&threadID, NULL, ThreadMain, (void *)threadArgs) != 0)
       DieWithError("pthread_create() failed");
@@ -93,15 +93,16 @@ int main(int argc, char *argv[]) {
 
 void *ThreadMain(void *threadArgs) {
   int clntSock; /* Socket descriptor for client connection */
-
+  char ClntAddr[20];
   /* Guarantees that thread resources are deallocated upon return */
   pthread_detach(pthread_self());
 
   /* Extract socket file descriptor from argument */
   clntSock = ((struct ThreadArgs *)threadArgs)->clntSock;
+  strcpy(ClntAddr, ((struct ThreadArgs *)threadArgs)->ClntAddr);
+  printf("%s", ClntAddr);
   free(threadArgs); /* Deallocate memory for argument */
-  HandleTCPClient(clntSock);
-    
+  HandleTCPClient(clntSock,ClntAddr);
   return (NULL);
 }
 
