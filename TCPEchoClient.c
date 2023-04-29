@@ -10,6 +10,38 @@
 #define PASSWORD_SIZE 100
 
 void DieWithError(char *errorMessage); /* Error handling function */
+void ShowActiveClients(int sock, char echoBuffer[RCVBUFSIZE])
+{
+
+    int bytesRcvd;
+    char promptMessage[150];
+    int recMSGSize;
+    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+        DieWithError("recv() failed or connection closed prematurely");
+    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
+    printf("%s \n",echoBuffer);
+    if (strcmp(echoBuffer, "ActiveClients"))
+    {
+        strcpy(promptMessage, "Send clients");
+        if (send(sock, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
+            DieWithError("send() failed");
+        echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
+
+        if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+            DieWithError("recv() failed or connection closed prematurely");
+        echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
+
+        if (send(sock, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
+            DieWithError("send() failed");
+        echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
+
+        if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+            DieWithError("recv() failed or connection closed prematurely");
+        echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
+
+        printf("%s", echoBuffer);
+    }
+}
 
 void Login(const int sock, char echoBuffer[RCVBUFSIZE])
 {
@@ -49,11 +81,22 @@ void Login(const int sock, char echoBuffer[RCVBUFSIZE])
     {
         printf("%s \n", echoBuffer);
 
-        printf("Select any one of below options.\n 1.P2P communication \n 2.Show Active Clients \n 3.Broadcast a message \n");
+        printf("Select any one of below options.\n 1. List of active users for P2P communication \n 2.Broadcast a message \n");
         scanf("%s", choice);
 
         if (send(sock, choice, strlen(choice), 0) != strlen(choice))
             DieWithError("send() sent a different number of bytes than expected");
+
+        switch (atoi(choice))
+        {
+        case 1:
+            ShowActiveClients(sock, echoBuffer);
+            break;
+        case 2:
+            break;
+        default:
+            break;
+        }
     }
 }
 

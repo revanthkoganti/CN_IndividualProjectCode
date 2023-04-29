@@ -14,14 +14,14 @@ MYSQL *conn; /* MySQL connection handle */
 #define MAX_ROWS 100
 #define MAX_COLS 100
 
-void InsertDataInUsers(char username[USERNAME_SIZE], char password[PASSWORD_SIZE])
+void InsertDataInUsers(char username[USERNAME_SIZE], char password[PASSWORD_SIZE], char clntAddr[20])
 {
     char hex_hashed_password[2 * SHA256_DIGEST_LENGTH + 1];
     HashPassword(password, hex_hashed_password);
 
     ConnectToDB();
     char query[200];
-    sprintf(query, "insert into users(username,password) values('%s','%s');", username, hex_hashed_password);
+    sprintf(query, "insert into users(username,password,ipaddress,isactive) values('%s','%s', '%s',FALSE);", username, hex_hashed_password, clntAddr);
     printf("%s \n", query);
     if (mysql_query(conn, query))
         printf("Unable to insert data into Employee table\n");
@@ -71,6 +71,51 @@ void HashPassword(char password[PASSWORD_SIZE], char *hex_hashed_password)
         sprintf(hex_hashed_password + 2 * i, "%02x", hashed_password[i]);
     }
 }
+void SetUserActive(char username[USERNAME_SIZE])
+{
+    ConnectToDB();
+    char query[200];
+    sprintf(query, "update users set isactive=TRUE where username='%s';", username);
+    printf("%s \n", query);
+    if (mysql_query(conn, query))
+        printf("Unable to insert data into Employee table\n");
+    DisconnectFromDB();
+}
+void ShowActiveClients(int clntSocket, char echoBuffer[RCVBUFSIZE], char **activeUsers)
+{
+
+    MYSQL_RES *result;
+    MYSQL_ROW row;
+    int num_fields, i, j;
+    char query[100];
+    ConnectToDB();
+    sprintf(query, "select username from users where isactive=TRUE;");
+
+    printf("%s \n", query);
+    if (mysql_query(conn, query))
+    {
+        DieWithError("Error in executing SQL select query");
+    }
+    printf("Executing SQL");
+    result = mysql_store_result(conn);
+
+    if (result)
+    {
+        if ((row = mysql_fetch_row(result)))
+        {
+            *activeUsers = row[0];
+        }
+    }
+    else
+    {
+        printf("error in sql \n");
+        fprintf(stderr, "%s\n", mysql_error(conn));
+        exit(1);
+    }
+
+    mysql_free_result(result);
+    DisconnectFromDB();
+}
 
 void DieWithError(char *errorMessage); /* Error handling function */
 
@@ -116,7 +161,7 @@ void BroadcastSender()
     /* NOT REACHED */
 }
 
-void HandleTCPClient(int clntSocket)
+void HandleTCPClient(int clntSocket, char clntAddr[20])
 {
     char echoBuffer[RCVBUFSIZE]; /* Buffer for echo string */
     int recvMsgSize;             /* Size of received message */
@@ -128,6 +173,7 @@ void HandleTCPClient(int clntSocket)
     char hashed_password[PASSWORD_SIZE];
     char hex_hashed_password[2 * SHA256_DIGEST_LENGTH + 1];
     char choice[10];
+    char *activeUsers[MAX_ROWS * MAX_COLS];
 
     /* Receive message from client */
     if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE - 1, 0)) < 0)
@@ -165,7 +211,6 @@ Login:
             strcpy(promptMessage, "Enter Password: ");
             if (send(clntSocket, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
                 DieWithError("send() failed");
-            echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
 
             if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
                 DieWithError("recv() failed");
@@ -183,7 +228,7 @@ Login:
                 strcpy(promptMessage, "LoginSuccess");
                 if (send(clntSocket, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
                     DieWithError("send() failed");
-                echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
+                SetUserActive(username);
 
                 if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
                     DieWithError("recv() failed");
@@ -191,19 +236,22 @@ Login:
                 switch (atoi(echoBuffer))
                 {
                 case 1:
-                    printf("selected 1");
+                    printf("Entered Switch \n");
+                    ShowActiveClients(clntSocket, echoBuffer, activeUsers);
+                    printf("%s", activeUsers);
+                    strcpy(promptMessage, "ActiveClients");
+                    if (send(clntSocket, *activeUsers, sizeof(*activeUsers), 0) != sizeof(*activeUsers))
+                        DieWithError("send() failed");
+
                     break;
                 case 2:
                     printf("selected 2");
 
                     break;
-                case 3:
-                    printf("selected 3");
-
-                    break;
                 default:
                     break;
                 }
+                break;
             }
             else
             {
@@ -248,13 +296,14 @@ Login:
         echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
         strcpy(confirmpassword, echoBuffer);
 
-        InsertDataInUsers(username, password);
+        InsertDataInUsers(username, password, clntAddr);
 
         strcpy(promptMessage, "Signup Successful Please login to continue");
         if (send(clntSocket, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
             DieWithError("send() failed");
-        strcpy(choice,"1");
+        strcpy(choice, "1");
         goto Login;
+        break;
     default:
         break;
     }
