@@ -26,7 +26,7 @@ void ConnectToDB()
 
     /* Connect to MySQL database */
     if (mysql_real_connect(conn, DB_HOST, DB_USER, DB_PASS, DB_NAME, 0, NULL, 0) == NULL)
-        DieWithError(mysql_error(conn));
+        DieWithError("Error in Sql connection");
 
     printf("Connected to MySQL database %s\n", DB_NAME);
 }
@@ -44,7 +44,7 @@ void DisconnectFromDB()
 void CreateUsersTable()
 {
     if (mysql_query(conn, CREATE_TABLE_QUERY) != 0)
-        DieWithError(mysql_error(conn));
+        DieWithError("Error in creating table");
 
     printf("Created table 'users' in MySQL database %s\n", DB_NAME);
 }
