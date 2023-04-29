@@ -11,6 +11,78 @@
 
 void DieWithError(char *errorMessage); /* Error handling function */
 
+void Login(const int sock, char echoBuffer[RCVBUFSIZE])
+{
+    int bytesRcvd;
+    char username[USERNAME_SIZE];
+    char password[PASSWORD_SIZE];
+    printf("client socket %d", sock);
+    /* Receive the same string back from the server */
+    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+        DieWithError("recv() failed or connection closed prematurely");
+    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
+    printf("%s \n", echoBuffer);     /* Print the echo buffer */
+    /*Enter username*/
+    scanf("%s", username);
+
+    if (send(sock, username, strlen(username), 0) != strlen(username))
+        DieWithError("send() sent a different number of bytes than expected");
+
+    /*Receive Password message from Handler*/
+    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+        DieWithError("recv() failed or connection closed prematurely");
+    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
+    printf("%s", echoBuffer);     /* Print the echo buffer */
+    /*Enter password*/
+    scanf("%s", password);
+    /*send Password to Handler*/
+    if (send(sock, password, strlen(password), 0) != strlen(password))
+        DieWithError("send() sent a different number of bytes than expected");
+
+    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+        DieWithError("recv() failed or connection closed prematurely");
+    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
+    printf("%s", echoBuffer);     /* Print the echo buffer */
+}
+
+void Signup(int sock, char echoBuffer[RCVBUFSIZE])
+{
+    int bytesRcvd;
+    char username[USERNAME_SIZE];
+    char password[PASSWORD_SIZE];
+    char confirmPassword[PASSWORD_SIZE];
+    /* Receive the same string back from the server */
+    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+        DieWithError("recv() failed or connection closed prematurely");
+    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
+    printf("%s", echoBuffer);     /* Print the echo buffer */
+    /*Enter username*/
+    scanf("%s", username);
+
+    if (send(sock, username, strlen(username), 0) != strlen(username))
+        DieWithError("send() sent a different number of bytes than expected");
+
+    /*Receive Password message from Handler*/
+    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+        DieWithError("recv() failed or connection closed prematurely");
+    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
+    printf("%s", echoBuffer);     /* Print the echo buffer */
+    /*Enter password*/
+    scanf("%s", password);
+    /*send Password to Handler*/
+    if (send(sock, password, strlen(password), 0) != strlen(password))
+        DieWithError("send() sent a different number of bytes than expected");
+    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+        DieWithError("recv() failed or connection closed prematurely");
+    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
+    printf("%s", echoBuffer);     /* Print the echo buffer */
+    /*Enter confirmPassword*/
+    scanf("%s", confirmPassword);
+    /*send Password to Handler*/
+    if (send(sock, confirmPassword, strlen(confirmPassword), 0) != strlen(confirmPassword))
+        DieWithError("send() sent a different number of bytes than expected");
+}
+
 int main(int argc, char *argv[])
 {
     int sock;                        /* Socket descriptor */
@@ -22,9 +94,6 @@ int main(int argc, char *argv[])
     unsigned int echoStringLen;      /* Length of string to echo */
     int bytesRcvd, totalBytesRcvd;   /* Bytes read in single recv() and total bytes read */
     char choice[10];
-    char username[USERNAME_SIZE];
-    char password[PASSWORD_SIZE];
-    char confirmPassword[PASSWORD_SIZE];
 
     unsigned int len;
     char buffer[RCVBUFSIZE];
@@ -57,8 +126,10 @@ int main(int argc, char *argv[])
     /* Establish the connection to the echo server */
     if (connect(sock, (struct sockaddr *)&echoServAddr, sizeof(echoServAddr)) < 0)
         DieWithError("connect() failed");
+    printf("socket %d \n",sock);
 
     echoStringLen = strlen(echoString); /* Determine input length */
+
 
     /* Send the string to the server */
     if (send(sock, echoString, echoStringLen, 0) != echoStringLen)
@@ -75,43 +146,12 @@ int main(int argc, char *argv[])
 
     if (send(sock, choice, strlen(choice), 0) != strlen(choice))
         DieWithError("send() sent a different number of bytes than expected");
-
-    /* Receive the same string back from the server */
-
-    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-        DieWithError("recv() failed or connection closed prematurely");
-    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-    printf("%s", echoBuffer);     /* Print the echo buffer */
-    /*Enter username*/
-    scanf("%s", username);
-
-    if (send(sock, username, strlen(username), 0) != strlen(username))
-        DieWithError("send() sent a different number of bytes than expected");
-
-    /*Receive Password message from Handler*/
-    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-        DieWithError("recv() failed or connection closed prematurely");
-    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-    printf("%s", echoBuffer);     /* Print the echo buffer */
-    /*Enter password*/
-    scanf("%s", password);
-    /*send Password to Handler*/
-    if (send(sock, password, strlen(password), 0) != strlen(password))
-        DieWithError("send() sent a different number of bytes than expected");     
-
+    if(atoi(choice) == 1){
+        Login(sock,echoBuffer);
+    }
     if (atoi(choice) == 2)
     {
-
-        if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-            DieWithError("recv() failed or connection closed prematurely");
-        echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-        printf("%s", echoBuffer);     /* Print the echo buffer */
-        /*Enter confirmPassword*/
-        scanf("%s", confirmPassword);
-        /*send Password to Handler*/
-        if (send(sock, confirmPassword, strlen(confirmPassword), 0) != strlen(confirmPassword))
-            DieWithError("send() sent a different number of bytes than expected");       
-        
+        Signup(sock,echoBuffer);
     }
 
     printf("\n"); /* Print a final linefeed */
