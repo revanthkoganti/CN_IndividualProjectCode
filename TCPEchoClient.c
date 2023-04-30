@@ -1,139 +1,37 @@
-#include <stdio.h>      /* for printf() and fprintf() */
-#include <sys/socket.h> /* for socket(), connect(), send(), and recv() */
-#include <arpa/inet.h>  /* for sockaddr_in and inet_addr() */
-#include <stdlib.h>     /* for atoi() and exit() */
-#include <string.h>     /* for memset() */
-#include <unistd.h>     /* for close() */
-
-#define RCVBUFSIZE 250 /* Size of receive buffer */
-#define USERNAME_SIZE 100
-#define PASSWORD_SIZE 100
+#include "TCPEchoClient.h" /* TCP echo server includes */
+#include <stdio.h>         /* for printf() and fprintf() */
+#include <sys/socket.h>    /* for socket(), connect(), send(), and recv() */
+#include <arpa/inet.h>     /* for sockaddr_in and inet_addr() */
+#include <stdlib.h>        /* for atoi() and exit() */
+#include <string.h>        /* for memset() */
+#include <unistd.h>        /* for close() */
+#include <pthread.h>       /* for POSIX threads */
 
 void DieWithError(char *errorMessage); /* Error handling function */
-void ShowActiveClients(int sock, char echoBuffer[RCVBUFSIZE])
+
+void *receive_thread(void *arg);
+
+struct Client_fd
 {
-    int bytesRcvd;
-    char promptMessage[150];
-    int recMSGSize;
-    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-        DieWithError("recv() failed or connection closed prematurely");
-    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-    if (strcmp(echoBuffer, "ActiveClients"))
-    {
-        strcpy(promptMessage, "Send clients");
-        if (send(sock, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
-            DieWithError("send() failed");
-        echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
+    int sock; /* Socket descriptor for client */
+    char echoString[50];
+};
 
-        if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-            DieWithError("recv() failed or connection closed prematurely");
-        echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-
-        if (send(sock, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
-            DieWithError("send() failed");
-        echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-
-        if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-            DieWithError("recv() failed or connection closed prematurely");
-        echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-
-        printf("%s", echoBuffer);
-    }
-}
-
-void Login(const int sock, char echoBuffer[RCVBUFSIZE])
+#define RCVBUFSIZE 250 /* Size of receive buffer */
+void *receive_thread(void *client_fd)
 {
-    int bytesRcvd;
-    char username[USERNAME_SIZE];
-    char password[PASSWORD_SIZE];
-    char choice[10];
-    char loginSuccessMessage[25] = "LoginSuccess";
+    int sock; /* Socket descriptor for client connection */
+              /* Guarantees that thread resources are deallocated upon return */
+    char echoString[50];
+    pthread_detach(pthread_self());
 
-    /* Receive the same string back from the server */
-    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-        DieWithError("recv() failed or connection closed prematurely");
-    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-    printf("%s \n", echoBuffer);  /* Print the echo buffer */
-    /*Enter username*/
-    scanf("%s", username);
-
-    if (send(sock, username, strlen(username), 0) != strlen(username))
-        DieWithError("send() sent a different number of bytes than expected");
-
-    /*Receive Password message from Handler*/
-    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-        DieWithError("recv() failed or connection closed prematurely");
-    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-    printf("%s", echoBuffer);     /* Print the echo buffer */
-    /*Enter password*/
-    scanf("%s", password);
-    /*send Password to Handler*/
-    if (send(sock, password, strlen(password), 0) != strlen(password))
-        DieWithError("send() sent a different number of bytes than expected");
-
-    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-        DieWithError("recv() failed or connection closed prematurely");
-    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-
-    if (strcmp(echoBuffer, loginSuccessMessage) == 0)
-    {
-        printf("%s \n", echoBuffer);
-
-        printf("Select any one of below options.\n 1. List of active users for P2P communication \n 2.Broadcast a message \n");
-        scanf("%s", choice);
-
-        if (send(sock, choice, strlen(choice), 0) != strlen(choice))
-            DieWithError("send() sent a different number of bytes than expected");
-
-        switch (atoi(choice))
-        {
-        case 1:
-            ShowActiveClients(sock, echoBuffer[RCVBUFSIZE]);
-            break;
-        case 2:
-            break;
-        default:
-            break;
-        }
-    }
-}
-
-void Signup(int sock, char echoBuffer[RCVBUFSIZE])
-{
-    int bytesRcvd;
-    char username[USERNAME_SIZE];
-    char password[PASSWORD_SIZE];
-    char confirmPassword[PASSWORD_SIZE];
-    /* Receive the same string back from the server */
-    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-        DieWithError("recv() failed or connection closed prematurely");
-    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-    printf("%s", echoBuffer);     /* Print the echo buffer */
-    /*Enter username*/
-    scanf("%s", username);
-
-    if (send(sock, username, strlen(username), 0) != strlen(username))
-        DieWithError("send() sent a different number of bytes than expected");
-
-    /*Receive Password message from Handler*/
-    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-        DieWithError("recv() failed or connection closed prematurely");
-    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-    printf("%s", echoBuffer);     /* Print the echo buffer */
-    /*Enter password*/
-    scanf("%s", password);
-    /*send Password to Handler*/
-    if (send(sock, password, strlen(password), 0) != strlen(password))
-        DieWithError("send() sent a different number of bytes than expected");
-    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-        DieWithError("recv() failed or connection closed prematurely");
-    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-    printf("%s", echoBuffer);     /* Print the echo buffer */
-    /*Enter confirmPassword*/
-    scanf("%s", confirmPassword);
-    /*send Password to Handler*/
-    if (send(sock, confirmPassword, strlen(confirmPassword), 0) != strlen(confirmPassword))
-        DieWithError("send() sent a different number of bytes than expected");
+    /* Extract socket file descriptor from argument */
+    sock = ((struct Client_fd *)client_fd)->sock;
+    strcpy(echoString, ((struct Client_fd *)client_fd)->echoString);
+    printf("%d in receive thread \n", sock);
+    free(client_fd); /* Deallocate memory for argument */
+    TCPClientThreadHandler(sock, echoString);
+    return (NULL);
 }
 
 int main(int argc, char *argv[])
@@ -146,9 +44,8 @@ int main(int argc, char *argv[])
     char echoBuffer[RCVBUFSIZE];     /* Buffer for echo string */
     unsigned int echoStringLen;      /* Length of string to echo */
     int bytesRcvd, totalBytesRcvd;   /* Bytes read in single recv() and total bytes read */
-    char choice[10];
-
-    unsigned int len;
+    pthread_t clientthreadID;        /* Thread ID from pthread_create() */
+    struct Client_fd *client_fd;     /* Pointer to argument structure for thread */
     char buffer[RCVBUFSIZE];
 
     if ((argc < 3) || (argc > 4)) /* Test for correct number of arguments */
@@ -169,7 +66,9 @@ int main(int argc, char *argv[])
     /* Create a reliable, stream socket using TCP */
     if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
         DieWithError("socket() failed");
-
+    /* Create separate memory for client argument */
+    if ((client_fd = (struct Client_fd *)malloc(sizeof(struct Client_fd))) == NULL)
+        DieWithError("malloc() failed");
     /* Construct the server address structure */
     memset(&echoServAddr, 0, sizeof(echoServAddr));   /* Zero out structure */
     echoServAddr.sin_family = AF_INET;                /* Internet address family */
@@ -179,43 +78,21 @@ int main(int argc, char *argv[])
     /* Establish the connection to the echo server */
     if (connect(sock, (struct sockaddr *)&echoServAddr, sizeof(echoServAddr)) < 0)
         DieWithError("connect() failed");
-    printf("socket %d \n", sock);
-
-    echoStringLen = strlen(echoString); /* Determine input length */
-
     /* Send the string to the server */
-    if (send(sock, echoString, echoStringLen, 0) != echoStringLen)
-        DieWithError("send() sent a different number of bytes than expected");
 
-    /* Receive the same string back from the server Ask for login/sign choice */
-    if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-        DieWithError("recv() failed or connection closed prematurely");
-    echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-    printf("%s", echoBuffer);     /* Print the echo buffer */
-    scanf("%s", choice);
+    printf("%d  sock variable\n", sock);
+    client_fd->sock = sock;
+    strcpy(client_fd->echoString, echoString);
+    printf("%d for struct", client_fd->sock);
 
-    /* Send the choice to the server */
+    if (pthread_create(&clientthreadID, NULL, &receive_thread, (void *)client_fd) != 0)
+        DieWithError("pthread_create() failed");
 
-    if (send(sock, choice, strlen(choice), 0) != strlen(choice))
-        DieWithError("send() sent a different number of bytes than expected");
-    if (atoi(choice) == 1)
-    {
-        Login(sock, echoBuffer);
-    }
-    if (atoi(choice) == 2)
-    {
-        Signup(sock, echoBuffer);
-        /*prompt to login*/
-        if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-            DieWithError("recv() failed or connection closed prematurely");
-        echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-        printf("%s", echoBuffer);     /* Print the echo buffer */
-
-        Login(sock, echoBuffer);
-    }
+    printf("with thread %ld\n", (long int)clientthreadID);
 
     printf("\n"); /* Print a final linefeed */
-
+    pthread_exit(&clientthreadID);
     close(sock);
+    printf("Socket closed");
     exit(0);
 }

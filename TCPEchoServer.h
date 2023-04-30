@@ -13,6 +13,9 @@
 
 
 void DieWithError(char *errorMessage);  /* Error handling function */
-void HandleTCPClient(int clntSocket, char clntAddr[20]);   /* TCP client handling function */
+void HandleTCPClient(int clntSocket);
 int CreateTCPServerSocket(unsigned short port); /* Create TCP server socket */
-int AcceptTCPConnection(int servSock, struct sockaddr_in **ClntAddr);  /* Accept TCP connection request */
+int AcceptTCPConnection(int servSock, char (*ClntAddr)[20]);  /* Accept TCP connection request */
+void ConnectToDB();
+void DisconnectFromDB();
+void HandleTCPClient();

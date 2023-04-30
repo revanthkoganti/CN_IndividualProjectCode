@@ -14,6 +14,19 @@ MYSQL *conn; /* MySQL connection handle */
 #define MAX_ROWS 100
 #define MAX_COLS 100
 
+void HashPassword(char password[PASSWORD_SIZE], char *hex_hashed_password)
+{
+    unsigned char hashed_password[SHA256_DIGEST_LENGTH];
+
+    char *password_to_hash = password;
+    SHA256((unsigned char *)password_to_hash, strlen(password_to_hash), hashed_password);
+
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++)
+    {
+        sprintf(hex_hashed_password + 2 * i, "%02x", hashed_password[i]);
+    }
+}
+
 void InsertDataInUsers(char username[USERNAME_SIZE], char password[PASSWORD_SIZE], char clntAddr[20])
 {
     char hex_hashed_password[2 * SHA256_DIGEST_LENGTH + 1];
@@ -35,6 +48,7 @@ void SelectDataFromUsers(char username[USERNAME_SIZE], char password[PASSWORD_SI
     int num_fields, i, j;
 
     char query[100];
+    ConnectToDB();
     sprintf(query, "select password from users where username='%s';", username);
     printf("%s \n", query);
     if (mysql_query(conn, query))
@@ -58,19 +72,9 @@ void SelectDataFromUsers(char username[USERNAME_SIZE], char password[PASSWORD_SI
     }
 
     mysql_free_result(result);
+    DisconnectFromDB();
 }
-void HashPassword(char password[PASSWORD_SIZE], char *hex_hashed_password)
-{
-    unsigned char hashed_password[SHA256_DIGEST_LENGTH];
 
-    char *password_to_hash = password;
-    SHA256((unsigned char *)password_to_hash, strlen(password_to_hash), hashed_password);
-
-    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++)
-    {
-        sprintf(hex_hashed_password + 2 * i, "%02x", hashed_password[i]);
-    }
-}
 void SetUserActive(char username[USERNAME_SIZE])
 {
     ConnectToDB();
@@ -81,29 +85,66 @@ void SetUserActive(char username[USERNAME_SIZE])
         printf("Unable to insert data into Employee table\n");
     DisconnectFromDB();
 }
-void ShowActiveClients(int clntSocket, char echoBuffer[RCVBUFSIZE], char **activeUsers)
+void ShowActiveClients(int clntSocket, char *column1, char *column2)
 {
 
     MYSQL_RES *result;
     MYSQL_ROW row;
     int num_fields, i, j;
     char query[100];
+    char echoBuffer[RCVBUFSIZE]; /* Buffer for echo string */
+    int recvMsgSize;
+
     ConnectToDB();
-    sprintf(query, "select username from users where isactive=TRUE;");
+
+    sprintf(query, "select username, ipaddress from users where isactive=TRUE;");
 
     printf("%s \n", query);
     if (mysql_query(conn, query))
     {
         DieWithError("Error in executing SQL select query");
     }
-    printf("Executing SQL");
+    printf("Executing SQL \n");
     result = mysql_store_result(conn);
+    int rows = mysql_num_rows(result);
+    int numFields = mysql_num_fields(result);
+    char totalRows[100];
+    sprintf(totalRows,"%d",rows);
 
+    printf("socket %d \n", clntSocket);
+
+    char promptMessage[] = "ActiveClients";
+    if (send(clntSocket, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
+        DieWithError("send() failed");
+
+    if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+        DieWithError("recv() failed");
+    echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
+    printf("%s", echoBuffer);
     if (result)
     {
-        if ((row = mysql_fetch_row(result)))
+
+        if (send(clntSocket, totalRows, sizeof(totalRows), 0) != sizeof(totalRows))
+            DieWithError("send() failed");
+        echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
+
+        while ((row = mysql_fetch_row(result)))
         {
-            *activeUsers = row[0];
+            column1 = row[0];
+            column2 = row[1];
+            printf("%s is %s years old\n", column1, column2);
+
+            if (send(clntSocket, column1, sizeof(column1), 0) != sizeof(column1))
+                DieWithError("send() failed");
+
+            if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+                DieWithError("recv() failed");
+            echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
+            if (send(clntSocket, column2, sizeof(column2), 0) != sizeof(column2))
+                DieWithError("send() failed");
+            if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+                DieWithError("recv() failed");
+            echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
         }
     }
     else
@@ -161,8 +202,10 @@ void BroadcastSender()
     /* NOT REACHED */
 }
 
-void HandleTCPClient(int clntSocket, char clntAddr[20])
+void HandleTCPClient(int clntSocket)
 {
+    printf("In Handletcpclient");
+    char clntAddr[20] = "127.0.0.1";
     char echoBuffer[RCVBUFSIZE]; /* Buffer for echo string */
     int recvMsgSize;             /* Size of received message */
     char username[USERNAME_SIZE];
@@ -173,22 +216,26 @@ void HandleTCPClient(int clntSocket, char clntAddr[20])
     char hashed_password[PASSWORD_SIZE];
     char hex_hashed_password[2 * SHA256_DIGEST_LENGTH + 1];
     char choice[10];
-    char *activeUsers[MAX_ROWS * MAX_COLS];
+    char *column1;
+    char *column2;
 
     /* Receive message from client */
     if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE - 1, 0)) < 0)
         DieWithError("recv() failed");
     echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
 
+    printf("%s \n", echoBuffer);
     /* Send prompt message to client */
     char promptMessage[] = "Welcome! Please select your choice as 1 or 2. \n 1. login \n 2. signup \n";
     if (send(clntSocket, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
         DieWithError("send() failed");
+    echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
 
     if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
         DieWithError("recv() failed");
     echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
     strcpy(choice, echoBuffer);
+
 Login:
     printf("Label reached");
     switch (atoi(echoBuffer))
@@ -237,11 +284,7 @@ Login:
                 {
                 case 1:
                     printf("Entered Switch \n");
-                    ShowActiveClients(clntSocket, echoBuffer, activeUsers);
-                    printf("%s", activeUsers);
-                    strcpy(promptMessage, "ActiveClients");
-                    if (send(clntSocket, *activeUsers, sizeof(*activeUsers), 0) != sizeof(*activeUsers))
-                        DieWithError("send() failed");
+                    ShowActiveClients(clntSocket, column1, column2);
 
                     break;
                 case 2:
@@ -307,6 +350,5 @@ Login:
     default:
         break;
     }
-
     close(clntSocket); /* Close client socket */
 }
