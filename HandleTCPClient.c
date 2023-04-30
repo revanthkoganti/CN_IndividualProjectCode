@@ -75,26 +75,28 @@ void SetUserActive(char username[USERNAME_SIZE])
 {
     ConnectToDB();
     char query[200];
-    sprintf(query, "update users set isactive=TRUE where username='%s');", username);
+    sprintf(query, "update users set isactive=TRUE where username='%s';", username);
     printf("%s \n", query);
     if (mysql_query(conn, query))
         printf("Unable to insert data into Employee table\n");
     DisconnectFromDB();
 }
-void ShowActiveClients(int clntSocket, char echoBuffer[RCVBUFSIZE], char **activeUsers[MAX_ROWS * MAX_COLS])
+void ShowActiveClients(int clntSocket, char echoBuffer[RCVBUFSIZE], char **activeUsers)
 {
+
     MYSQL_RES *result;
     MYSQL_ROW row;
     int num_fields, i, j;
-
     char query[100];
-    sprintf(query, "select password from users where isactive=TRUE;");
+    ConnectToDB();
+    sprintf(query, "select username from users where isactive=TRUE;");
+
     printf("%s \n", query);
     if (mysql_query(conn, query))
     {
         DieWithError("Error in executing SQL select query");
     }
-
+    printf("Executing SQL");
     result = mysql_store_result(conn);
 
     if (result)
@@ -106,11 +108,13 @@ void ShowActiveClients(int clntSocket, char echoBuffer[RCVBUFSIZE], char **activ
     }
     else
     {
+        printf("error in sql \n");
         fprintf(stderr, "%s\n", mysql_error(conn));
         exit(1);
     }
 
     mysql_free_result(result);
+    DisconnectFromDB();
 }
 
 void DieWithError(char *errorMessage); /* Error handling function */
@@ -207,7 +211,6 @@ Login:
             strcpy(promptMessage, "Enter Password: ");
             if (send(clntSocket, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
                 DieWithError("send() failed");
-            echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
 
             if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
                 DieWithError("recv() failed");
@@ -221,12 +224,11 @@ Login:
             HashPassword(password, hex_hashed_password);
             if (strcmp(hex_hashed_password, *data) == 0)
             {
-                SetUserActive(username);
                 /*Send Login success message to client*/
                 strcpy(promptMessage, "LoginSuccess");
                 if (send(clntSocket, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
                     DieWithError("send() failed");
-                echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
+                SetUserActive(username);
 
                 if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
                     DieWithError("recv() failed");
@@ -234,26 +236,22 @@ Login:
                 switch (atoi(echoBuffer))
                 {
                 case 1:
-                    printf("selected 1");
+                    printf("Entered Switch \n");
+                    ShowActiveClients(clntSocket, echoBuffer, activeUsers);
+                    printf("%s", activeUsers);
+                    strcpy(promptMessage, "ActiveClients");
+                    if (send(clntSocket, *activeUsers, sizeof(*activeUsers), 0) != sizeof(*activeUsers))
+                        DieWithError("send() failed");
+
                     break;
                 case 2:
-                    ShowActiveClients(clntSocket, echoBuffer[RCVBUFSIZE], activeUsers);
-
-                    strcpy(promptMessage, "ActiveClients");
-                    if (send(clntSocket, activeUsers, sizeof(activeUsers), 0) != sizeof(activeUsers))
-                        DieWithError("send() failed");
-                    echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
-
-                    
-
-                    break;
-                case 3:
-                    printf("selected 3");
+                    printf("selected 2");
 
                     break;
                 default:
                     break;
                 }
+                break;
             }
             else
             {
@@ -305,6 +303,7 @@ Login:
             DieWithError("send() failed");
         strcpy(choice, "1");
         goto Login;
+        break;
     default:
         break;
     }
