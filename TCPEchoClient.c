@@ -12,14 +12,12 @@
 void DieWithError(char *errorMessage); /* Error handling function */
 void ShowActiveClients(int sock, char echoBuffer[RCVBUFSIZE])
 {
-
     int bytesRcvd;
     char promptMessage[150];
     int recMSGSize;
     if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
         DieWithError("recv() failed or connection closed prematurely");
     echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-    printf("%s \n",echoBuffer);
     if (strcmp(echoBuffer, "ActiveClients"))
     {
         strcpy(promptMessage, "Send clients");
@@ -90,7 +88,7 @@ void Login(const int sock, char echoBuffer[RCVBUFSIZE])
         switch (atoi(choice))
         {
         case 1:
-            ShowActiveClients(sock, echoBuffer);
+            ShowActiveClients(sock, echoBuffer[RCVBUFSIZE]);
             break;
         case 2:
             break;
