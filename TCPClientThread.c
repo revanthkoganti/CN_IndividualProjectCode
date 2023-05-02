@@ -240,22 +240,20 @@ void ShowActiveClients(int sock, char echoBuffer[RCVBUFSIZE])
         DieWithError("recv() failed or connection closed prematurely");
     echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
     printf("%s \n", echoBuffer);
-    if (strcmp(echoBuffer, "ActiveClients")==0)
+    if (strcmp(echoBuffer, "ActiveClients") == 0)
     {
         strcpy(promptMessage, "Send clients");
         if (send(sock, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
             DieWithError("send() failed");
-        echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-    
+
         if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0) // Total no of rows
             DieWithError("recv() failed or connection closed prematurely");
         echoBuffer[bytesRcvd] = '\0';
-        printf("%s",echoBuffer);
 
         int totalRows = atoi(echoBuffer);
         for (int i = 0; i < totalRows; i++)
         {
-            if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+            if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE-1, 0)) <= 0)
                 DieWithError("recv() failed or connection closed prematurely");
             echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
 
@@ -264,24 +262,23 @@ void ShowActiveClients(int sock, char echoBuffer[RCVBUFSIZE])
 
             if (send(sock, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
                 DieWithError("send() failed");
-            echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
 
-            if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+            if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE-1, 0)) <= 0)
                 DieWithError("recv() failed or connection closed prematurely");
             echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
             strcpy(column2, echoBuffer);
-
+            printf("%s \n", echoBuffer);
             strcpy(promptMessage, "Column2Received");
             if (send(sock, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
                 DieWithError("send() failed");
-            echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
             printf("%s ip address is %s \n", column1, column2);
         }
     }
 }
 
-void Login(const int sock, char echoBuffer[RCVBUFSIZE])
+void Login(int sock)
 {
+    char echoBuffer[RCVBUFSIZE];
     int bytesRcvd;
     char username[USERNAME_SIZE];
     char password[PASSWORD_SIZE];
@@ -330,7 +327,7 @@ void Login(const int sock, char echoBuffer[RCVBUFSIZE])
         case 1:
             ShowActiveClients(sock, echoBuffer);
             printf("Select any peer ip address to start P2P communication");
-            scanf("%s",p2paddress);
+            scanf("%s", p2paddress);
             break;
         case 2:
             P2PMessage();
@@ -341,13 +338,14 @@ void Login(const int sock, char echoBuffer[RCVBUFSIZE])
     }
 }
 
-void Signup(int sock, char echoBuffer[RCVBUFSIZE])
+void Signup(int sock)
 {
     int bytesRcvd;
     char username[USERNAME_SIZE];
     char password[PASSWORD_SIZE];
     char confirmPassword[PASSWORD_SIZE];
-    /* Receive the same string back from the server */
+    char echoBuffer[RCVBUFSIZE];
+        /* Receive the same string back from the server */
     if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
         DieWithError("recv() failed or connection closed prematurely");
     echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
@@ -377,6 +375,8 @@ void Signup(int sock, char echoBuffer[RCVBUFSIZE])
     /*send Password to Handler*/
     if (send(sock, confirmPassword, strlen(confirmPassword), 0) != strlen(confirmPassword))
         DieWithError("send() sent a different number of bytes than expected");
+    printf("Signup Successful, Please login to client \n");
+    Login(sock);
 }
 
 void TCPClientThreadHandler(int sock, char echoString[50])
@@ -402,17 +402,10 @@ void TCPClientThreadHandler(int sock, char echoString[50])
         DieWithError("send() sent a different number of bytes than expected");
     if (atoi(choice) == 1)
     {
-        Login(sock, echoBuffer);
+        Login(sock);
     }
     if (atoi(choice) == 2)
     {
-        Signup(sock, echoBuffer);
-        /*prompt to login*/
-        if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-            DieWithError("recv() failed or connection closed prematurely");
-        echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-        printf("%s", echoBuffer);     /* Print the echo buffer */
-
-        Login(sock, echoBuffer);
+        Signup(sock);
     }
 }
