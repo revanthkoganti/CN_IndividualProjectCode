@@ -85,6 +85,16 @@ void SetUserActive(char username[USERNAME_SIZE])
         printf("Unable to insert data into Employee table\n");
     DisconnectFromDB();
 }
+void SetUserInactive(char username[USERNAME_SIZE])
+{
+    ConnectToDB();
+    char query[200];
+    sprintf(query, "update users set isactive=FALSE where username='%s';", username);
+    printf("%s \n", query);
+    if (mysql_query(conn, query))
+        printf("Unable to insert data into Employee table\n");
+    DisconnectFromDB();
+}
 
 void ShowActiveClients(int clntSocket, char *column1, char *column2)
 {
@@ -141,7 +151,7 @@ void ShowActiveClients(int clntSocket, char *column1, char *column2)
             if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
                 DieWithError("recv() failed");
             echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
-            if (send(clntSocket, column2, sizeof(column2)+2, 0) != sizeof(column2)+2)
+            if (send(clntSocket, column2, sizeof(column2) + 2, 0) != sizeof(column2) + 2)
                 DieWithError("send() failed");
             if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
                 DieWithError("recv() failed");
@@ -159,6 +169,47 @@ void ShowActiveClients(int clntSocket, char *column1, char *column2)
     DisconnectFromDB();
 }
 
+void BroadcastSender(char BroadcastMessage[200])
+{
+    int sock;                         /* Socket */
+    struct sockaddr_in broadcastAddr; /* Broadcast address */
+    char *broadcastIP;                /* IP broadcast address */
+    unsigned short broadcastPort;     /* Server port */
+    char *sendString;                 /* String to broadcast */
+    int broadcastPermission;          /* Socket opt to set permission to broadcast */
+    unsigned int sendStringLen;       /* Length of string to broadcast */
+
+    broadcastIP = "127.0.0.1"; /* First arg:  broadcast IP address */
+    broadcastPort = 4401;      /* Second arg:  broadcast port */
+    sendString = BroadcastMessage;      /* Third arg:  string to broadcast */
+
+    /* Create socket for sending/receiving datagrams */
+    if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+        DieWithError("socket() failed");
+
+    /* Set socket to allow broadcast */
+    broadcastPermission = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (void *)&broadcastPermission,
+                   sizeof(broadcastPermission)) < 0)
+        DieWithError("setsockopt() failed");
+
+    /* Construct local address structure */
+    memset(&broadcastAddr, 0, sizeof(broadcastAddr));       /* Zero out structure */
+    broadcastAddr.sin_family = AF_INET;                     /* Internet address family */
+    broadcastAddr.sin_addr.s_addr = inet_addr(broadcastIP); /* Broadcast IP address */
+    broadcastAddr.sin_port = htons(broadcastPort);          /* Broadcast port */
+
+    sendStringLen = strlen(sendString); /* Find length of sendString */
+    for (;;)                            /* Run forever */
+    {
+        /* Broadcast sendString in datagram to clients every 3 seconds*/
+        if (sendto(sock, sendString, sendStringLen, 0, (struct sockaddr *)&broadcastAddr, sizeof(broadcastAddr)) != sendStringLen)
+            DieWithError("sendto() sent a different number of bytes than expected");
+
+        sleep(3); /* Avoids flooding the network */
+    }
+    /* NOT REACHED */
+}
 void DieWithError(char *errorMessage); /* Error handling function */
 void Login(int clntSocket)
 {
@@ -172,6 +223,7 @@ void Login(int clntSocket)
     char *column2;
     char hex_hashed_password[2 * SHA256_DIGEST_LENGTH + 1];
     char *data[MAX_ROWS * MAX_COLS];
+    char BroadcastMessage[200];
 
     while (true)
     {
@@ -217,13 +269,16 @@ void Login(int clntSocket)
             case 1:
                 printf("Entered Switch \n");
                 ShowActiveClients(clntSocket, column1, column2);
-
                 break;
             case 2:
-                printf("selected 2");
-
+                if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
+                    DieWithError("recv() failed");
+                echoBuffer[recvMsgSize] = '\0'; /* Terminate the string! */
+                strcpy(BroadcastMessage, echoBuffer);
+                BroadcastSender(BroadcastMessage);
                 break;
             default:
+                SetUserInactive(username);
                 break;
             }
             break;
@@ -242,47 +297,6 @@ void Login(int clntSocket)
     }
 }
 
-void BroadcastSender()
-{
-    int sock;                         /* Socket */
-    struct sockaddr_in broadcastAddr; /* Broadcast address */
-    char *broadcastIP;                /* IP broadcast address */
-    unsigned short broadcastPort;     /* Server port */
-    char *sendString;                 /* String to broadcast */
-    int broadcastPermission;          /* Socket opt to set permission to broadcast */
-    unsigned int sendStringLen;       /* Length of string to broadcast */
-
-    broadcastIP = "127.0.0.1"; /* First arg:  broadcast IP address */
-    broadcastPort = 4400;      /* Second arg:  broadcast port */
-    sendString = "Hello";      /* Third arg:  string to broadcast */
-
-    /* Create socket for sending/receiving datagrams */
-    if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-        DieWithError("socket() failed");
-
-    /* Set socket to allow broadcast */
-    broadcastPermission = 1;
-    if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (void *)&broadcastPermission,
-                   sizeof(broadcastPermission)) < 0)
-        DieWithError("setsockopt() failed");
-
-    /* Construct local address structure */
-    memset(&broadcastAddr, 0, sizeof(broadcastAddr));       /* Zero out structure */
-    broadcastAddr.sin_family = AF_INET;                     /* Internet address family */
-    broadcastAddr.sin_addr.s_addr = inet_addr(broadcastIP); /* Broadcast IP address */
-    broadcastAddr.sin_port = htons(broadcastPort);          /* Broadcast port */
-
-    sendStringLen = strlen(sendString); /* Find length of sendString */
-    for (;;)                            /* Run forever */
-    {
-        /* Broadcast sendString in datagram to clients every 3 seconds*/
-        if (sendto(sock, sendString, sendStringLen, 0, (struct sockaddr *)&broadcastAddr, sizeof(broadcastAddr)) != sendStringLen)
-            DieWithError("sendto() sent a different number of bytes than expected");
-
-        sleep(3); /* Avoids flooding the network */
-    }
-    /* NOT REACHED */
-}
 void Signup(int clntSocket)
 {
     char username[USERNAME_SIZE];
@@ -341,7 +355,7 @@ void HandleTCPClient(int clntSocket)
 
     printf("%s \n", echoBuffer);
     /* Send prompt message to client */
-    char promptMessage[] = "Welcome! Please select your choice as 1 or 2. \n 1. login \n 2. signup \n";
+    char promptMessage[] = "Welcome! Please select your choice as 1 or 2. \n 1. login \n 2. signup\n";
     if (send(clntSocket, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
         DieWithError("send() failed");
 
@@ -360,6 +374,7 @@ void HandleTCPClient(int clntSocket)
         Signup(clntSocket);
         break;
     default:
+        close(clntSocket);
         break;
     }
     close(clntSocket); /* Close client socket */

@@ -37,17 +37,16 @@ void *receive_thread_handler(void *client_fd)
     }
 }
 
-void BroadcastReceiver()
+void *BroadcastReceiver()
 {
-    int sock;                           /* Socket */
+    int sock;
     struct sockaddr_in broadcastAddr;   /* Broadcast Address */
     unsigned short broadcastPort;       /* Port */
     char recvString[MAXRECVSTRING + 1]; /* Buffer for received string */
     int recvStringLen;                  /* Length of received string */
 
-    broadcastPort = 4400; /* First arg: broadcast port */
-    pthread_t tid;
-    pthread_create(&tid, NULL, &receive_thread_handler, &sock); // Creating thread to keep receiving message in real time
+    broadcastPort = 4401; /* First arg: broadcast port */
+
     /* Create a best-effort datagram socket using UDP */
     if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
         DieWithError("socket() failed");
@@ -67,7 +66,7 @@ void BroadcastReceiver()
         DieWithError("recvfrom() failed");
 
     recvString[recvStringLen] = '\0';
-    printf("Received: %s\n", recvString); /* Print the received string */
+    printf("BroadCast Message Received: %s \n", recvString); /* Print the received string */
 
     close(sock);
     exit(0);
@@ -253,7 +252,7 @@ void ShowActiveClients(int sock, char echoBuffer[RCVBUFSIZE])
         int totalRows = atoi(echoBuffer);
         for (int i = 0; i < totalRows; i++)
         {
-            if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE-1, 0)) <= 0)
+            if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
                 DieWithError("recv() failed or connection closed prematurely");
             echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
 
@@ -263,7 +262,7 @@ void ShowActiveClients(int sock, char echoBuffer[RCVBUFSIZE])
             if (send(sock, promptMessage, sizeof(promptMessage), 0) != sizeof(promptMessage))
                 DieWithError("send() failed");
 
-            if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE-1, 0)) <= 0)
+            if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
                 DieWithError("recv() failed or connection closed prematurely");
             echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
             strcpy(column2, echoBuffer);
@@ -285,6 +284,8 @@ void Login(int sock)
     char choice[10];
     char loginSuccessMessage[25] = "LoginSuccess";
     char p2paddress[20];
+    char broadcastmessage[200];
+    pthread_t tid;
 
     /* Receive the same string back from the server */
     if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
@@ -316,7 +317,7 @@ void Login(int sock)
     {
         printf("%s \n", echoBuffer);
 
-        printf("Select any one of below options.\n 1. List of active users for P2P communication \n 2.Broadcast a message \n");
+        printf("Select any one of below options.\n 1. List of active users for P2P communication \n 2.Broadcast a message \n 3. Logout \n 4. Listen to broadcast messages   \n");
         scanf("%s", choice);
 
         if (send(sock, choice, strlen(choice), 0) != strlen(choice))
@@ -330,13 +331,20 @@ void Login(int sock)
             scanf("%s", p2paddress);
             break;
         case 2:
-            P2PMessage();
+            printf("Enter the broadcast message:");
+            scanf("%s", broadcastmessage);
+            if (send(sock, broadcastmessage, strlen(broadcastmessage), 0) != strlen(broadcastmessage))
+                DieWithError("send() sent a different number of bytes than expected");
             break;
+        case 4:
+            pthread_create(&tid, NULL, BroadcastReceiver, NULL); // Creating thread to keep receiving message in real time
         default:
+            close(sock);
             break;
         }
     }
 }
+
 
 void Signup(int sock)
 {
@@ -345,7 +353,8 @@ void Signup(int sock)
     char password[PASSWORD_SIZE];
     char confirmPassword[PASSWORD_SIZE];
     char echoBuffer[RCVBUFSIZE];
-        /* Receive the same string back from the server */
+
+    /* Receive the same string back from the server */
     if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
         DieWithError("recv() failed or connection closed prematurely");
     echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
@@ -400,12 +409,16 @@ void TCPClientThreadHandler(int sock, char echoString[50])
 
     if (send(sock, choice, strlen(choice), 0) != strlen(choice))
         DieWithError("send() sent a different number of bytes than expected");
-    if (atoi(choice) == 1)
+    switch (atoi(choice))
     {
+    case 1:
         Login(sock);
-    }
-    if (atoi(choice) == 2)
-    {
+        break;
+    case 2:
         Signup(sock);
+        break;
+    default:
+        close(sock);
+        break;
     }
 }
