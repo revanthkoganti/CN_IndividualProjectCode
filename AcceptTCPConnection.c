@@ -1,10 +1,10 @@
 #include <arpa/inet.h>  /* for sockaddr_in and inet_ntoa() */
 #include <stdio.h>      /* for printf() */
 #include <sys/socket.h> /* for accept() */
-
+#include <string.h>
 void DieWithError(char *errorMessage); /* Error handling function */
 
-int AcceptTCPConnection(int servSock) {
+int AcceptTCPConnection(int servSock, char (*ClntAddr)[20]) {
   int clntSock;                    /* Socket descriptor for client */
   struct sockaddr_in echoClntAddr; /* Client address */
   unsigned int clntLen;            /* Length of client address data structure */
@@ -20,6 +20,6 @@ int AcceptTCPConnection(int servSock) {
   /* clntSock is connected to a client! */
 
   printf("Handling client %s\n", inet_ntoa(echoClntAddr.sin_addr));
-
+  strcpy(*ClntAddr, inet_ntoa(echoClntAddr.sin_addr));
   return clntSock;
 }
